@@ -22,6 +22,10 @@ impl IpIter {
             d: 0,
         }
     }
+
+    pub fn to_ip_addr(&self) -> Ipv4Addr {
+        Ipv4Addr::new(self.a, self.b, self.c, self.d)
+    }
 }
 
 impl Iterator for IpIter {

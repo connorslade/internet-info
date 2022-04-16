@@ -11,7 +11,7 @@ use tui::{
     Frame,
 };
 
-use crate::{IP_COUNT};
+use crate::IP_COUNT;
 
 pub fn ui<B: Backend>(
     f: &mut Frame<B>,
@@ -74,14 +74,19 @@ pub fn ui<B: Backend>(
     .block(Block::default().title("Log").borders(Borders::ALL));
     f.render_widget(log, hchunks[1]);
 
+    let ip_count = ui_ip_count.load(Ordering::Relaxed);
     let gauge = Gauge::default()
-        .block(Block::default().borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title(ip_count.to_string())
+                .borders(Borders::ALL),
+        )
         .gauge_style(
             Style::default()
                 .fg(Color::Magenta)
                 .bg(Color::Black)
                 .add_modifier(Modifier::BOLD),
         )
-        .percent((ui_ip_count.load(Ordering::Relaxed) / IP_COUNT) as u16);
+        .percent((ip_count / IP_COUNT) as u16);
     f.render_widget(gauge, vchunks[1]);
 }
