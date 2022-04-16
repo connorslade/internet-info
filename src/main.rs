@@ -39,25 +39,7 @@ fn main() {
             Ok(i) => i,
             Err(_) => continue,
         };
-
-        dbg!(res);
     }
 }
 
-// fn main() {
-//     let timeout = Duration::from_secs(5);
-//     let ips = ip_iter::IpIter::new();
-//
-//     let req = Request::builder()
-//         .version(Version::HTTP_11)
-//         .method("GET")
-//         .header("User-Agent", "Internet-Info")
-//         .body(())
-//         .unwrap();
-//
-//     for i in ips.into_iter() {
-//         let addr = i.to_socket_addrs().unwrap().next().unwrap();
-//         let stream = TcpStream::connect_timeout(&addr, timeout).unwrap();
-//         stream.write_all(req).unwrap();
-//     }
-// }
+// TODO: MultiThreaing
