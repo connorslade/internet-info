@@ -110,7 +110,14 @@ fn sys_status(ui_history: &[usize], start: Instant, ui_ip_count: usize) -> Vec<L
     vec![
         format!("Ips Checked: {}", nice_num_str(ui_ip_count)),
         format!("Elapsed Time: {}", nice_time(start.elapsed().as_secs())),
-        format!("Max Speed: {}", ui_history.iter().max().unwrap()),
+        format!(
+            "Current Speed: {}",
+            nice_num_str(*ui_history.last().unwrap())
+        ),
+        format!(
+            "Max Speed: {}",
+            nice_num_str(*ui_history.iter().max().unwrap())
+        ),
     ]
     .iter()
     .map(|x| ListItem::new(x.to_owned()))
@@ -120,7 +127,7 @@ fn sys_status(ui_history: &[usize], start: Instant, ui_ip_count: usize) -> Vec<L
 fn nice_time(time: u64) -> String {
     let hor = time / 3600;
     let min = (time - hor * 3600) / 60;
-    let sec = time - min * 60;
+    let sec = time - min * 60 - hor * 3600;
     format!("{:0>2}:{:0>2}:{:0>2}", hor, min, sec)
 }
 

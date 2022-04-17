@@ -25,7 +25,7 @@ mod ui;
 pub const OUT_PATH: &str = "out.dat";
 pub const UI_FPS: usize = 10;
 pub const SPEED_GRAPH_VALUES: usize = 30;
-pub const THREAD_COUNT: usize = 25;
+pub const THREAD_COUNT: usize = 100;
 
 pub const IP_COUNT: usize = 4_294_967_296; // 256^4
 
@@ -104,6 +104,7 @@ fn main() {
     let events = events_og.clone();
     let mut stdout = io::stdout();
     let mut ui_history = vec![0; SPEED_GRAPH_VALUES];
+    let mut ui_sum = 0;
     let mut frame = 0;
     stdout
         .write_all(Clear(ClearType::All).to_string().as_bytes())
@@ -115,8 +116,9 @@ fn main() {
         let start = Instant::now();
 
         if frame % UI_FPS == 0 {
-            let last: usize = ui_history.iter().sum();
-            let new = ip_count_og.load(Ordering::Relaxed) - last;
+            let current = ip_count_og.load(Ordering::Relaxed);
+            let new =  current - ui_sum;
+            ui_sum += new;
             ui_history.remove(0);
             ui_history.push(new);
         }
