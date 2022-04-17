@@ -35,6 +35,7 @@ enum Message {
 }
 
 fn main() {
+    let sys_start = Instant::now();
     let ips = ip_iter::IpIter::new();
     let mspf = ((UI_FPS as f32).recip() * 1000.0) as u64;
 
@@ -116,13 +117,22 @@ fn main() {
         if frame % UI_FPS == 0 {
             let last: usize = ui_history.iter().sum();
             let new = ip_count_og.load(Ordering::Relaxed) - last;
+            ui_history.remove(0);
             ui_history.push(new);
         }
 
         terminal
-            .draw(|f| ui::ui(f, events_og.clone(), &ui_history, ip_count_og.clone()))
+            .draw(|f| {
+                ui::ui(
+                    f,
+                    events_og.clone(),
+                    &ui_history,
+                    ip_count_og.clone(),
+                    sys_start,
+                )
+            })
             .unwrap();
-        frame += 1;
+        frame = frame.overflowing_add(1).0;
 
         let frame_time = start.elapsed().as_millis() as u64;
         if frame_time > mspf {

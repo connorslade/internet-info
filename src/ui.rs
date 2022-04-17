@@ -2,6 +2,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, RwLock,
 };
+use std::time::Instant;
 
 use tui::{
     backend::Backend,
@@ -20,6 +21,7 @@ pub fn ui<B: Backend>(
     ui_events: Arc<RwLock<Vec<String>>>,
     ui_history: &[usize],
     ui_ip_count: Arc<AtomicUsize>,
+    start: Instant,
 ) {
     let vchunks = Layout::default()
         .direction(Direction::Vertical)
@@ -30,6 +32,10 @@ pub fn ui<B: Backend>(
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(80), Constraint::Percentage(20)].as_ref())
         .split(vchunks[0]);
+    let hchunks2 = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
+        .split(hchunks[1]);
 
     let raw_data = ui_history.iter().rev().take(SPEED_GRAPH_VALUES).rev();
     let max_y = raw_data.clone().max().unwrap();
@@ -77,13 +83,17 @@ pub fn ui<B: Backend>(
             .collect::<Vec<_>>(),
     )
     .block(Block::default().title("Log").borders(Borders::ALL));
-    f.render_widget(log, hchunks[1]);
+    f.render_widget(log, hchunks2[0]);
 
     let ip_count = ui_ip_count.load(Ordering::Relaxed);
+    let status = List::new(sys_status(ui_history, start, ip_count))
+        .block(Block::default().title("Status").borders(Borders::ALL));
+    f.render_widget(status, hchunks2[1]);
+
     let gauge = Gauge::default()
         .block(
             Block::default()
-                .title(nice_num_str(ip_count))
+                .title("Percent Checked")
                 .borders(Borders::ALL),
         )
         .gauge_style(
@@ -94,6 +104,24 @@ pub fn ui<B: Backend>(
         )
         .percent((ip_count / IP_COUNT) as u16);
     f.render_widget(gauge, vchunks[1]);
+}
+
+fn sys_status(ui_history: &[usize], start: Instant, ui_ip_count: usize) -> Vec<ListItem> {
+    vec![
+        format!("Ips Checked: {}", nice_num_str(ui_ip_count)),
+        format!("Elapsed Time: {}", nice_time(start.elapsed().as_secs())),
+        format!("Max Speed: {}", ui_history.iter().max().unwrap()),
+    ]
+    .iter()
+    .map(|x| ListItem::new(x.to_owned()))
+    .collect::<Vec<_>>()
+}
+
+fn nice_time(time: u64) -> String {
+    let hor = time / 3600;
+    let min = (time - hor * 3600) / 60;
+    let sec = time - min * 60;
+    format!("{:0>2}:{:0>2}:{:0>2}", hor, min, sec)
 }
 
 fn nice_num_str(num: usize) -> String {
