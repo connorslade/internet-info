@@ -37,7 +37,7 @@ pub fn ui<B: Backend>(
         .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
         .split(hchunks[1]);
 
-    let raw_data = ui_history.iter().rev().take(SPEED_GRAPH_VALUES).rev();
+    let raw_data = ui_history.iter().rev().take(*SPEED_GRAPH_VALUES).rev();
     let max_y = raw_data.clone().max().unwrap();
     let data = raw_data
         .enumerate()
@@ -49,14 +49,14 @@ pub fn ui<B: Backend>(
         .style(Style::default().fg(Color::Cyan))
         .data(&data)];
 
-    let speed_graph_values_str = format!("-{}", SPEED_GRAPH_VALUES);
+    let speed_graph_values_str = format!("-{}", *SPEED_GRAPH_VALUES);
     let max_y_str = max_y.to_string();
     let speed = Chart::new(datasets)
         .block(Block::default().title("Speed").borders(Borders::ALL))
         .x_axis(
             Axis::default()
                 .style(Style::default().fg(Color::White))
-                .bounds([0.0, SPEED_GRAPH_VALUES as f64])
+                .bounds([0.0, *SPEED_GRAPH_VALUES as f64])
                 .labels(
                     [&speed_graph_values_str, "0"]
                         .iter()

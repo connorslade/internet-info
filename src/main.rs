@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::{self, Write};
 use std::net::Ipv4Addr;
+use std::path::Path;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, RwLock,
@@ -19,13 +20,10 @@ use crossterm::{
 use isahc::{config::Configurable, RequestExt};
 use tui::{backend::CrosstermBackend, Terminal};
 
+mod config;
 mod ip_iter;
 mod ui;
-
-pub const OUT_PATH: &str = "out.dat";
-pub const UI_FPS: usize = 10;
-pub const SPEED_GRAPH_VALUES: usize = 30;
-pub const THREAD_COUNT: usize = 100;
+use config::*;
 
 pub const IP_COUNT: usize = 4_294_967_296; // 256^4
 
@@ -35,19 +33,26 @@ enum Message {
 }
 
 fn main() {
+    config::load("config.cfg").unwrap();
+
     let sys_start = Instant::now();
     let ips = ip_iter::IpIter::new();
-    let mspf = ((UI_FPS as f32).recip() * 1000.0) as u64;
+    let mspf = ((*UI_FPS as f32).recip() * 1000.0) as u64;
 
     let ip_count_og = Arc::new(AtomicUsize::new(0));
-    let threads_count = Arc::new(AtomicUsize::new(THREAD_COUNT));
-    let events_og = Arc::new(RwLock::new(vec![format!("Starting [{}]", THREAD_COUNT)]));
+    let threads_count = Arc::new(AtomicUsize::new(*THREAD_COUNT));
+    let events_og = Arc::new(RwLock::new(vec![format!("Starting [{}]", *THREAD_COUNT)]));
     let real_ips = Arc::new(RwLock::new(Vec::new()));
     let (tx, rx) = crossbeam_channel::unbounded();
     execute!(io::stdout(), EnterAlternateScreen).unwrap();
     println!("Loading...");
 
-    fs::write("out.dat", "LOADING").unwrap();
+    if Path::new(&DATA_OUT.to_owned()).exists()
+        && fs::read_to_string(DATA_OUT.to_owned()).unwrap() != "LOADING"
+    {
+        panic!("Data File already Exists")
+    }
+    fs::write(DATA_OUT.to_owned(), "LOADING").unwrap();
     let events = events_og.clone();
     let ip_count = ip_count_og.clone();
     thread::spawn(move || {
@@ -65,7 +70,7 @@ fn main() {
                     events.write().unwrap().push(format!("Thread Exit [{}]", i));
                     if threads_count.load(Ordering::Relaxed) == 0 {
                         let bin = bincode::serialize(&*real_ips.read().unwrap()).unwrap();
-                        fs::write(OUT_PATH, bin).unwrap();
+                        fs::write(DATA_OUT.to_owned(), bin).unwrap();
 
                         process::exit(0);
                     }
@@ -74,11 +79,11 @@ fn main() {
         }
     });
 
-    for (ti, e) in (0..THREAD_COUNT).enumerate() {
+    for (ti, e) in (0..*THREAD_COUNT).enumerate() {
         let tx = tx.clone();
-        let ip_iter = ips.skip(ti * (IP_COUNT / THREAD_COUNT));
-        let mut ip_stop_index = ((ti + 1) * (IP_COUNT / THREAD_COUNT)) - 1;
-        if e == THREAD_COUNT {
+        let ip_iter = ips.skip(ti * (IP_COUNT / *THREAD_COUNT));
+        let mut ip_stop_index = ((ti + 1) * (IP_COUNT / *THREAD_COUNT)) - 1;
+        if e == *THREAD_COUNT {
             ip_stop_index = IP_COUNT;
         }
 
@@ -103,7 +108,7 @@ fn main() {
     enable_raw_mode().unwrap();
     let events = events_og.clone();
     let mut stdout = io::stdout();
-    let mut ui_history = vec![0; SPEED_GRAPH_VALUES];
+    let mut ui_history = vec![0; *SPEED_GRAPH_VALUES];
     let mut ui_sum = 0;
     let mut frame = 0;
     stdout
@@ -115,9 +120,9 @@ fn main() {
     loop {
         let start = Instant::now();
 
-        if frame % UI_FPS == 0 {
+        if frame % *UI_FPS == 0 {
             let current = ip_count_og.load(Ordering::Relaxed);
-            let new =  current - ui_sum;
+            let new = current - ui_sum;
             ui_sum += new;
             ui_history.remove(0);
             ui_history.push(new);
