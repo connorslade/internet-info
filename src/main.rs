@@ -1,11 +1,12 @@
+use std::fs;
 use std::io::{self, Write};
 use std::net::Ipv4Addr;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, RwLock,
 };
-use std::thread;
 use std::time::{Duration, Instant};
+use std::{process, thread};
 
 use crossbeam_channel;
 use crossterm::{
@@ -19,14 +20,15 @@ use tui::{backend::CrosstermBackend, Terminal};
 mod ip_iter;
 mod ui;
 
+pub const OUT_PATH: &str = "out.dat";
 pub const UI_FPS: usize = 10;
 pub const SPEED_GRAPH_VALUES: usize = 30;
 pub const THREAD_COUNT: usize = 25;
+
 pub const IP_COUNT: usize = 4_294_967_296; // 256^4
 
 enum Message {
-    IpCheck(Ipv4Addr),
-    IpFail(Ipv4Addr),
+    IpCheck(Ipv4Addr, bool),
     ThreadExit(usize),
 }
 
@@ -37,23 +39,32 @@ fn main() {
     let ip_count_og = Arc::new(AtomicUsize::new(0));
     let threads_count = Arc::new(AtomicUsize::new(THREAD_COUNT));
     let events_og = Arc::new(RwLock::new(vec![format!("Starting [{}]", THREAD_COUNT)]));
+    let real_ips = Arc::new(RwLock::new(Vec::new()));
     let (tx, rx) = crossbeam_channel::unbounded();
     println!("Loading...");
 
+    fs::write("out.dat", "LOADING").unwrap();
     let events = events_og.clone();
     let ip_count = ip_count_og.clone();
     thread::spawn(move || {
         for i in rx {
             match i {
-                Message::IpCheck(_) => {
-                    ip_count.fetch_add(1, Ordering::Relaxed);
-                }
-                Message::IpFail(_) => {
+                Message::IpCheck(i, x) => {
+                    if x {
+                        real_ips.write().unwrap().push(i);
+                    }
+
                     ip_count.fetch_add(1, Ordering::Relaxed);
                 }
                 Message::ThreadExit(i) => {
                     threads_count.fetch_sub(1, Ordering::Relaxed);
                     events.write().unwrap().push(format!("Thread Exit [{}]", i));
+                    if threads_count.load(Ordering::Relaxed) == 0 {
+                        let bin = bincode::serialize(&*real_ips.read().unwrap()).unwrap();
+                        fs::write(OUT_PATH, bin).unwrap();
+
+                        process::exit(0);
+                    }
                 }
             };
         }
@@ -67,7 +78,6 @@ fn main() {
             ip_stop_index = IP_COUNT;
         }
 
-        let ip_count = ip_count_og.clone();
         thread::spawn(move || {
             for (i, e) in ip_iter.enumerate() {
                 if i >= ip_stop_index {
@@ -75,13 +85,13 @@ fn main() {
                     break;
                 }
 
-                let _res = isahc::Request::get(&format!("http://{}/", e))
+                let res = isahc::Request::get(&format!("http://{}/", e))
                     .timeout(Duration::from_millis(100))
                     .body(())
                     .unwrap()
                     .send();
-                ip_count.fetch_add(1, Ordering::Relaxed);
-                // tx.send(Message::IpCheck(e.to_ip_addr())).unwrap();
+                tx.send(Message::IpCheck(e.to_ip_addr(), res.is_ok()))
+                    .unwrap();
             }
         });
     }
