@@ -110,6 +110,7 @@ fn main() {
     let mut stdout = io::stdout();
     let mut ui_history = vec![0; *SPEED_GRAPH_VALUES];
     let mut ui_sum = 0;
+    let mut ui_max = 0;
     let mut frame = 0;
     stdout
         .write_all(Clear(ClearType::All).to_string().as_bytes())
@@ -124,6 +125,7 @@ fn main() {
             let current = ip_count_og.load(Ordering::Relaxed);
             let new = current - ui_sum;
             ui_sum += new;
+            ui_max = ui_max.max(new);
             ui_history.remove(0);
             ui_history.push(new);
         }
@@ -135,6 +137,7 @@ fn main() {
                     events_og.clone(),
                     &ui_history,
                     ip_count_og.clone(),
+                    ui_max,
                     sys_start,
                 )
             })

@@ -21,6 +21,7 @@ pub fn ui<B: Backend>(
     ui_events: Arc<RwLock<Vec<String>>>,
     ui_history: &[usize],
     ui_ip_count: Arc<AtomicUsize>,
+    ui_max: usize,
     start: Instant,
 ) {
     let vchunks = Layout::default()
@@ -91,7 +92,7 @@ pub fn ui<B: Backend>(
     f.render_widget(log, hchunks2[0]);
 
     let ip_count = ui_ip_count.load(Ordering::Relaxed);
-    let status = List::new(sys_status(ui_history, start, ip_count))
+    let status = List::new(sys_status(ui_history, start, ip_count, ui_max))
         .block(Block::default().title("Status").borders(Borders::ALL));
     f.render_widget(status, hchunks2[1]);
 
@@ -111,7 +112,12 @@ pub fn ui<B: Backend>(
     f.render_widget(gauge, vchunks[1]);
 }
 
-fn sys_status(ui_history: &[usize], start: Instant, ui_ip_count: usize) -> Vec<ListItem> {
+fn sys_status(
+    ui_history: &[usize],
+    start: Instant,
+    ui_ip_count: usize,
+    ui_max: usize,
+) -> Vec<ListItem> {
     vec![
         format!("Ips Checked: {}", nice_num_str(ui_ip_count)),
         format!("Elapsed Time: {}", nice_time(start.elapsed().as_secs())),
@@ -119,10 +125,7 @@ fn sys_status(ui_history: &[usize], start: Instant, ui_ip_count: usize) -> Vec<L
             "Current Speed: {}",
             nice_num_str(*ui_history.last().unwrap())
         ),
-        format!(
-            "Max Speed: {}",
-            nice_num_str(*ui_history.iter().max().unwrap())
-        ),
+        format!("Max Speed: {}", nice_num_str(ui_max)),
     ]
     .iter()
     .map(|x| ListItem::new(x.to_owned()))
