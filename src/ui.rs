@@ -28,7 +28,6 @@ pub fn ui<B: Backend>(
         .split(f.size());
     let hchunks = Layout::default()
         .direction(Direction::Horizontal)
-        .margin(1)
         .constraints([Constraint::Percentage(80), Constraint::Percentage(20)].as_ref())
         .split(vchunks[0]);
 

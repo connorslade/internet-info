@@ -8,11 +8,13 @@ use std::sync::{
 use std::time::{Duration, Instant};
 use std::{process, thread};
 
-use crossbeam_channel;
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, LeaveAlternateScreen},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen,
+        LeaveAlternateScreen,
+    },
 };
 use isahc::{config::Configurable, RequestExt};
 use tui::{backend::CrosstermBackend, Terminal};
@@ -33,7 +35,7 @@ enum Message {
 }
 
 fn main() {
-    let ips = ip_iter::IpIter::new().into_iter();
+    let ips = ip_iter::IpIter::new();
     let mspf = ((UI_FPS as f32).recip() * 1000.0) as u64;
 
     let ip_count_og = Arc::new(AtomicUsize::new(0));
@@ -41,6 +43,7 @@ fn main() {
     let events_og = Arc::new(RwLock::new(vec![format!("Starting [{}]", THREAD_COUNT)]));
     let real_ips = Arc::new(RwLock::new(Vec::new()));
     let (tx, rx) = crossbeam_channel::unbounded();
+    execute!(io::stdout(), EnterAlternateScreen).unwrap();
     println!("Loading...");
 
     fs::write("out.dat", "LOADING").unwrap();
@@ -102,7 +105,7 @@ fn main() {
     let mut ui_history = vec![0; SPEED_GRAPH_VALUES];
     let mut frame = 0;
     stdout
-        .write(&Clear(ClearType::All).to_string().as_bytes())
+        .write_all(Clear(ClearType::All).to_string().as_bytes())
         .unwrap();
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -131,9 +134,8 @@ fn main() {
 
         if crossterm::event::poll(Duration::from_millis(mspf.saturating_sub(frame_time))).unwrap() {
             if let Event::Key(key) = event::read().unwrap() {
-                match key.code {
-                    KeyCode::Esc => break,
-                    _ => {}
+                if key.code == KeyCode::Esc {
+                    break;
                 }
             }
         }

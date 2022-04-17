@@ -23,7 +23,7 @@ impl IpIter {
         }
     }
 
-    pub fn to_ip_addr(&self) -> Ipv4Addr {
+    pub fn to_ip_addr(self) -> Ipv4Addr {
         Ipv4Addr::new(self.a, self.b, self.c, self.d)
     }
 }
@@ -41,7 +41,7 @@ impl Iterator for IpIter {
         max_reset(&mut self.b, &mut self.c);
         max_reset(&mut self.a, &mut self.b);
 
-        Some(self.clone())
+        Some(*self)
     }
 }
 
