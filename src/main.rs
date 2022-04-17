@@ -13,14 +13,15 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, LeaveAlternateScreen},
 };
+use isahc::{config::Configurable, RequestExt};
 use tui::{backend::CrosstermBackend, Terminal};
-use ureq;
 
 mod ip_iter;
 mod ui;
 
 pub const UI_FPS: usize = 10;
-pub const THREAD_COUNT: usize = 100;
+pub const SPEED_GRAPH_VALUES: usize = 30;
+pub const THREAD_COUNT: usize = 25;
 pub const IP_COUNT: usize = 4_294_967_296; // 256^4
 
 enum Message {
@@ -35,7 +36,7 @@ fn main() {
 
     let ip_count_og = Arc::new(AtomicUsize::new(0));
     let threads_count = Arc::new(AtomicUsize::new(THREAD_COUNT));
-    let events_og = Arc::new(RwLock::new(vec!["Starting".to_owned()]));
+    let events_og = Arc::new(RwLock::new(vec![format!("Starting [{}]", THREAD_COUNT)]));
     let (tx, rx) = crossbeam_channel::unbounded();
     println!("Loading...");
 
@@ -66,6 +67,7 @@ fn main() {
             ip_stop_index = IP_COUNT;
         }
 
+        let ip_count = ip_count_og.clone();
         thread::spawn(move || {
             for (i, e) in ip_iter.enumerate() {
                 if i >= ip_stop_index {
@@ -73,23 +75,22 @@ fn main() {
                     break;
                 }
 
-                let res = match ureq::get(&format!("http://{}/", e))
+                let _res = isahc::Request::get(&format!("http://{}/", e))
                     .timeout(Duration::from_millis(100))
-                    .call()
-                {
-                    Ok(i) => i,
-                    Err(_) => {
-                        tx.send(Message::IpCheck(e.to_ip_addr())).unwrap();
-                        continue;
-                    }
-                };
-                tx.send(Message::IpCheck(e.to_ip_addr())).unwrap()
+                    .body(())
+                    .unwrap()
+                    .send();
+                ip_count.fetch_add(1, Ordering::Relaxed);
+                // tx.send(Message::IpCheck(e.to_ip_addr())).unwrap();
             }
         });
     }
 
     enable_raw_mode().unwrap();
+    let events = events_og.clone();
     let mut stdout = io::stdout();
+    let mut ui_history = vec![0; SPEED_GRAPH_VALUES];
+    let mut frame = 0;
     stdout
         .write(&Clear(ClearType::All).to_string().as_bytes())
         .unwrap();
@@ -99,13 +100,26 @@ fn main() {
     loop {
         let start = Instant::now();
 
-        terminal
-            .draw(|f| ui::ui(f, events_og.clone(), ip_count_og.clone()))
-            .unwrap();
+        if frame % UI_FPS == 0 {
+            let last: usize = ui_history.iter().sum();
+            let new = ip_count_og.load(Ordering::Relaxed) - last;
+            ui_history.push(new);
+        }
 
-        let timeout =
-            Duration::from_millis(mspf.saturating_sub(start.elapsed().as_millis() as u64));
-        if crossterm::event::poll(timeout).unwrap() {
+        terminal
+            .draw(|f| ui::ui(f, events_og.clone(), &ui_history, ip_count_og.clone()))
+            .unwrap();
+        frame += 1;
+
+        let frame_time = start.elapsed().as_millis() as u64;
+        if frame_time > mspf {
+            events
+                .write()
+                .unwrap()
+                .push(format!("Frametime too long [{}]", frame_time));
+        }
+
+        if crossterm::event::poll(Duration::from_millis(mspf.saturating_sub(frame_time))).unwrap() {
             if let Event::Key(key) = event::read().unwrap() {
                 match key.code {
                     KeyCode::Esc => break,
