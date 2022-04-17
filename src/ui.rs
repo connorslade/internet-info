@@ -50,7 +50,6 @@ pub fn ui<B: Backend>(
         .data(&data)];
 
     let speed_graph_values_str = format!("-{}", *SPEED_GRAPH_VALUES);
-    let max_y_str = max_y.to_string();
     let speed = Chart::new(datasets)
         .block(Block::default().title("Speed").borders(Borders::ALL))
         .x_axis(
@@ -69,7 +68,13 @@ pub fn ui<B: Backend>(
             Axis::default()
                 .style(Style::default().fg(Color::White))
                 .bounds([0.0, *max_y as f64])
-                .labels(["0", &max_y_str].iter().cloned().map(Span::from).collect()),
+                .labels(
+                    make_scale(0.0, *max_y as f32, 5)
+                        .iter()
+                        .cloned()
+                        .map(Span::from)
+                        .collect(),
+                ),
         );
     f.render_widget(speed, hchunks[0]);
 
@@ -122,6 +127,23 @@ fn sys_status(ui_history: &[usize], start: Instant, ui_ip_count: usize) -> Vec<L
     .iter()
     .map(|x| ListItem::new(x.to_owned()))
     .collect::<Vec<_>>()
+}
+
+fn make_scale<'a>(start: f32, end: f32, count: u8) -> Vec<String> {
+    let diff = start.max(end) - start.min(end);
+    let step = diff / count as f32;
+    let mut out = Vec::new();
+
+    let mut inc = start;
+    for _ in 0..count {
+        let int = inc.round();
+        let dec = ((inc - int) * 1.0).round() / 1.0;
+        out.push(format!("{}.{}", nice_num_str(int as usize), dec.abs()));
+        inc += step;
+    }
+    out.push(format!("{}.0", nice_num_str(end as usize)));
+
+    out
 }
 
 fn nice_time(time: u64) -> String {
